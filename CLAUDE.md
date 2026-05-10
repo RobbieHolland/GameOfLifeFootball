@@ -1,0 +1,1 @@
+Be simple in your execution, use Occam's Razor. Do not think or use up all the tokens in my subscription without checking in periodically.
