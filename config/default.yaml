@@ -12,3 +12,4 @@ population_size: 100
 games_per_round: 20
 n_rounds: 25
 steps_per_game: 300
+save_gifs_interval: 10

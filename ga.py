@@ -74,14 +74,16 @@ def select_and_reproduce(genomes: torch.Tensor, scores: torch.Tensor, cfg) -> to
     probs = (ranks + 1) / ((N * (N + 1)) / 2)
     probs = probs / probs.sum()
 
-    parents_idx    = torch.multinomial(probs, N, replacement=False)
+    parents_idx    = torch.multinomial(probs, N, replacement=True)
     selected_ranks = ranks[parents_idx].long().tolist()
     rank_counts    = torch.zeros(N, dtype=torch.long)
     for r in selected_ranks:
         rank_counts[r] += 1
     top10 = rank_counts[-10:].flip(0).tolist()
     print(f"  selected rank counts (top10→worst): {top10}")
-    parents = genomes.cpu()[parents_idx].to(DEVICE)
+    shuffle      = torch.randperm(N)
+    parents_idx  = parents_idx[shuffle]
+    parents      = genomes.cpu()[parents_idx].to(DEVICE)
 
     n_bits      = cfg.genome_rows * cfg.org_cols
     genome_mask = (1 << n_bits) - 1
@@ -233,40 +235,39 @@ def run_ga(cfg):
         round_dir = Path(f"rounds/{round_num}")
         round_dir.mkdir(parents=True, exist_ok=True)
 
-        for label, idx, game_src in [("best", best_idx, "best"), ("median", median_idx, "random"), ("worst", worst_idx, "worst")]:
-            if game_src == "best":
-                lg, rg = best_left[idx].item(), best_right[idx].item()
-                side   = "left" if best_side[idx].item() == 0 else "right"
-            elif game_src == "worst":
-                lg, rg = worst_left[idx].item(), worst_right[idx].item()
-                side   = "left" if worst_side[idx].item() == 0 else "right"
-            else:
-                g       = genomes[idx].item()
-                opp_idx = sorted_idx[torch.randint(n // 2, n, (1,)).item()].item()
-                opp     = genomes[opp_idx].item()
-                side    = "left" if torch.rand(1).item() < 0.5 else "right"
-                lg, rg  = (g, opp) if side == "left" else (opp, g)
-            frames, red_pos, ls, rs = record_game(lg, rg, birth_mask, survival_mask,
-                                                  near_birth_mask, near_surv_mask, cfg)
-            score = ls if side == "left" else rs
-            save_gif(frames, red_pos, round_dir / f"{label}_{side}_{score:.2g}.gif", label)
+        if round_num % cfg.save_gifs_interval == 0:
+            for label, idx, game_src in [("best", best_idx, "best"), ("median", median_idx, "random"), ("worst", worst_idx, "worst")]:
+                if game_src == "best":
+                    lg, rg = best_left[idx].item(), best_right[idx].item()
+                    side   = "left" if best_side[idx].item() == 0 else "right"
+                elif game_src == "worst":
+                    lg, rg = worst_left[idx].item(), worst_right[idx].item()
+                    side   = "left" if worst_side[idx].item() == 0 else "right"
+                else:
+                    g       = genomes[idx].item()
+                    opp_idx = sorted_idx[torch.randint(n // 2, n, (1,)).item()].item()
+                    opp     = genomes[opp_idx].item()
+                    side    = "left" if torch.rand(1).item() < 0.5 else "right"
+                    lg, rg  = (g, opp) if side == "left" else (opp, g)
+                frames, red_pos, ls, rs = record_game(lg, rg, birth_mask, survival_mask,
+                                                      near_birth_mask, near_surv_mask, cfg)
+                score = ls if side == "left" else rs
+                save_gif(frames, red_pos, round_dir / f"{label}_{side}_{score:.2g}.gif", label)
 
-        med_genome = genomes[median_idx].item()
-        for ref_label, ref_pop in [("vs_r0", population_history[0]),
-                                   ("vs_r10", population_history[ref10_round])]:
-            opp_i  = torch.randint(len(ref_pop), (1,)).item()
-            opp    = ref_pop[opp_i].item()
-            side   = "left" if torch.rand(1).item() < 0.5 else "right"
-            lg, rg = (med_genome, opp) if side == "left" else (opp, med_genome)
-            frames, red_pos, ls, rs = record_game(lg, rg, birth_mask, survival_mask,
-                                                  near_birth_mask, near_surv_mask, cfg)
-            score = ls if side == "left" else rs
-            save_gif(frames, red_pos, round_dir / f"median_{ref_label}_{side}_{score:.2g}.gif", ref_label)
+            med_genome = genomes[median_idx].item()
+            for ref_label, ref_pop in [("vs_r0", population_history[0]),
+                                       ("vs_r10", population_history[ref10_round])]:
+                opp_i  = torch.randint(len(ref_pop), (1,)).item()
+                opp    = ref_pop[opp_i].item()
+                side   = "left" if torch.rand(1).item() < 0.5 else "right"
+                lg, rg = (med_genome, opp) if side == "left" else (opp, med_genome)
+                frames, red_pos, ls, rs = record_game(lg, rg, birth_mask, survival_mask,
+                                                      near_birth_mask, near_surv_mask, cfg)
+                score = ls if side == "left" else rs
+                save_gif(frames, red_pos, round_dir / f"median_{ref_label}_{side}_{score:.2g}.gif", ref_label)
 
         save_score_plot(all_scores, all_ref0_scores, all_ref10_scores, Path("rounds"))
 
-        best_genome = genomes[best_idx].clone()
-        genomes     = select_and_reproduce(genomes, scores, cfg)
-        genomes[0]  = best_genome
+        genomes = select_and_reproduce(genomes, scores, cfg)
 
     print("Done.")
