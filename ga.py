@@ -74,7 +74,7 @@ def select_and_reproduce(genomes: torch.Tensor, scores: torch.Tensor, cfg) -> to
     probs = (ranks + 1) / ((N * (N + 1)) / 2)
     probs = probs / probs.sum()
 
-    parents_idx    = torch.multinomial(probs, N, replacement=True)
+    parents_idx    = torch.multinomial(probs, N, replacement=False)
     selected_ranks = ranks[parents_idx].long().tolist()
     rank_counts    = torch.zeros(N, dtype=torch.long)
     for r in selected_ranks:

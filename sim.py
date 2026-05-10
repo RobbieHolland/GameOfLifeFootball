@@ -12,7 +12,8 @@ CENTER_COL = ORG_COLS + FIELD_WIDTH // 2
 CENTER_ROW = H // 2
 RIGHT_START_COL = ORG_COLS + FIELD_WIDTH
 
-DEVICE = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+print(f"Device: {DEVICE}")
 
 
 def configure(field_width, h, org_cols=3):
